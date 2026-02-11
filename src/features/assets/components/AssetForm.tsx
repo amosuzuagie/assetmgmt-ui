@@ -16,14 +16,11 @@ export const AssetForm = ({ onSubmit, submitting, defaultValues }: Props) => {
   const {
     register,
     handleSubmit,
-    watch,
     formState: { errors },
   } = useForm<AssetCreateRequest>({defaultValues});
 
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
   const [branches, setBranches] = useState<BranchResponse[]>([]);
-
-  const assetClass = watch("categoryId");
 
   useEffect(() => {
     categoryApi.getAll().then(setCategories)

@@ -12,3 +12,5 @@ export interface CategoryResponse {
   assetClass: AssetClass;
   description?: string;
 }
+
+export type { AssetClass };
