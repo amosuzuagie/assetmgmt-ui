@@ -70,6 +70,12 @@ export type AssetSearchRequest = {
   acquiredTo?: string;
 };
 
+export interface AssetMovementRequest {
+  assetId: string;
+  toBranchId: string;
+  reason: string;
+}
+
 export const ASSET_CLASSES: AssetClass[] = [
   "FF",
   "EQ",

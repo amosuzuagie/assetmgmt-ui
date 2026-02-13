@@ -1,11 +1,19 @@
 import { http } from "../../shared/api/http";
-import type { AssetCreateRequest, AssetDisposalRequest, AssetMovementResponse, AssetResponse, AssetSearchRequest } from "../../shared/types/asset";
+import type { AssetCreateRequest, AssetDisposalRequest, AssetMovementRequest, AssetMovementResponse, AssetResponse, AssetSearchRequest } from "../../shared/types/asset";
 import type { Page } from "../../shared/types/page";
 
+interface PaginationOptions {
+  page?: number;
+  size?: number;
+  signal?: AbortSignal;
+}
 
 export const assetApi = {
-  getAll: (page = 0, size = 20) =>
-    http.get<Page<AssetResponse>>(`/api/assets?page=${page}&size=${size}`)
+  getAll: ({ page = 0, size = 20, signal }: PaginationOptions = {}) =>
+    http.get<Page<AssetResponse>>(
+      `/api/assets?page=${page}&size=${size}`,
+      { signal }
+    )
       .then(r => r.data),
 
   getById: (id: string) =>
@@ -30,10 +38,16 @@ export const assetApi = {
   restore: (id: string) =>
     http.put(`/api/assets/${id}/restore`),
 
-  assign: (assetId: string, branchId: string) =>
-    http.put<AssetResponse>(
-      `/api/assets/${assetId}/assign/${branchId}`
-    ).then(r => r.data),
+  // assign: (assetId: string, branchId: string) =>
+  //   http.put<AssetResponse>(
+  //     `/api/assets/${assetId}/assign/${branchId}`
+  //   ).then(r => r.data),
+
+  assign: (data: AssetMovementRequest) =>
+  http.post<AssetResponse>(
+    `/api/assets/assign`,
+    data
+  ).then(r => r.data),
 
   dispose: (data: AssetDisposalRequest) =>
   http.put("/api/assets/" + data.assetId + "/dispose", data),
@@ -43,10 +57,14 @@ export const assetApi = {
       .get<AssetMovementResponse[]>(`/api/assets/${assetId}/movements`)
       .then(r => r.data),
 
-  search: (filter: AssetSearchRequest, page = 0, size = 20) =>
+  search: (
+  filter: AssetSearchRequest,
+  { page = 0, size = 20, signal }: PaginationOptions = {}
+) =>
   http.post<Page<AssetResponse>>(
     `/api/assets/search?page=${page}&size=${size}`,
-    filter
+    filter,
+    { signal }
   ).then(r => r.data),
 };
 

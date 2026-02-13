@@ -7,6 +7,8 @@ import { AssetTable } from "../components/AssetTable";
 import { ActionButton } from "../../../shared/components/buttons/ActionButton";
 import { AssetSearchPanel } from "../components/AssetSearchPanel";
 import { Pagination } from "../../../shared/pagination/Pagination";
+import { parseApiError } from "../../../shared/api/apiError";
+import axios from "axios";
 
 export const AssetListPage = () => {
   const navigate = useNavigate();
@@ -15,63 +17,82 @@ export const AssetListPage = () => {
   const [filters, setFilters] = useState<AssetSearchRequest>({});
   const [pageData, setPageData] = useState<Page<AssetResponse> | null>(null);
 
-  /**
-   * Single source of truth for data loading
-   */
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
-    const hasFilters = Object.keys(filters).length > 0;
+  const controller = new AbortController();
 
-    const request = hasFilters
-      ? assetApi.search(filters, page)
-      : assetApi.getAll(page);
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-    request.then(setPageData);
-  }, [filters, page]);
+      const hasFilters = Object.keys(filters).length > 0;
 
-  /**
-   * Search handler
-   */
-  const handleFilterChange = (newFilters: AssetSearchRequest) => {
-    setFilters(newFilters);
-    setPage(0); // 🔥 reset pagination on new search
+      const result = hasFilters
+        ? await assetApi.search(filters, { page, size: 20, signal: controller.signal })
+        : await assetApi.getAll({page, size: 20, signal: controller.signal});
+
+      setPageData(result);
+    } catch (err) {
+      if (axios.isCancel(err)) return;
+
+      setError(parseApiError(err))
+    } finally {
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
+    }
   };
 
-  /**
-   * Reset search → load all assets
-   */
+  loadData();
+
+  return () => controller.abort();
+}, [filters, page]);
+
+
+  const handleFilterChange = (newFilters: AssetSearchRequest) => {
+    setFilters(newFilters);
+    setPage(0);
+  };
+
   const loadAll = () => {
     setFilters({});
     setPage(0);
   };
 
-  /**
-   * Delete asset
-   */
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this asset?")) return;
 
-    await assetApi.remove(id);
+    try {
+      await assetApi.remove(id);
 
-    setPageData(prev =>
-      prev
-        ? {
-            ...prev,
-            content: prev.content.filter(a => a.id !== id),
-          }
-        : prev
-    );
+      setPageData(prev =>
+        prev
+          ? {
+              ...prev,
+              content: prev.content.filter(a => a.id !== id),
+            }
+          : prev
+      );
+    } catch (err: any) {
+      alert(
+        err.response?.data?.message ||
+        "Failed to delete asset."
+      );
+    }
   };
-
-  if (!pageData) {
-    return (
-      <div className="p-6 text-gray-600">
-        Loading assets...
-      </div>
-    );
-  }
 
   return (
     <div className="p-6 space-y-6">
+      {/* Error */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded">
+          {error}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-semibold text-gray-800">
@@ -85,30 +106,42 @@ export const AssetListPage = () => {
         />
       </div>
 
-      {/* Search */}
-      {pageData.content.length > 0 && (
-        <AssetSearchPanel
+      <AssetSearchPanel
         onSearch={handleFilterChange}
         onReset={loadAll}
       />
+
+      {/* Loading */}
+      {loading && (
+        <div className="text-gray-600">Loading assets...</div>
+      )}
+
+      {/* Empty State */}
+      {!loading && !error && pageData && pageData.content.length === 0 && (
+        <div className="p-6 text-center text-gray-500">
+          No assets found.
+        </div>
       )}
 
       {/* Table */}
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-        <AssetTable
-          assets={pageData.content}
-          onView={id => navigate(`/assets/${id}`)}
-          onEdit={id => navigate(`/assets/${id}/edit`)}
-          onDelete={handleDelete}
-        />
-      </div>
+      {!loading && !error && pageData && pageData.content.length > 0 && (
+        <>
+          <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+            <AssetTable
+              assets={pageData.content}
+              onView={id => navigate(`/assets/${id}`)}
+              onEdit={id => navigate(`/assets/${id}/edit`)}
+              onDelete={handleDelete}
+            />
+          </div>
 
-      {/* Pagination */}
-      <Pagination
-        page={pageData.number}
-        totalPages={pageData.totalPages}
-        onPageChange={setPage}
-      />
+          <Pagination
+            page={pageData.number}
+            totalPages={pageData.totalPages}
+            onPageChange={setPage}
+          />
+        </>
+      )}
     </div>
   );
 };
